@@ -23,6 +23,7 @@ return {
 
     -- Add your own debuggers here
     'leoluz/nvim-dap-go',
+    -- 'mxsdev/nvim-dap-vscode-js',
   },
   keys = function(_, keys)
     local dap = require 'dap'
@@ -101,5 +102,65 @@ return {
         detached = vim.fn.has 'win32' == 0,
       },
     }
+
+    -- Install JavaScript/TypeScript specific config
+
+    --- Gets a path to a package in the Mason registry.
+    --- Prefer this to `get_package`, since the package might not always be
+    --- available yet and trigger errors.
+    ---@param pkg string
+    ---@param path? string
+    local function get_pkg_path(pkg, path)
+      pcall(require, 'mason')
+      local root = vim.env.MASON or (vim.fn.stdpath 'data' .. '/mason')
+      path = path or ''
+      local ret = root .. '/packages/' .. pkg .. '/' .. path
+      return ret
+    end
+
+    require('dap').adapters['pwa-node'] = {
+      type = 'server',
+      host = 'localhost',
+      port = '${port}',
+      executable = {
+        command = 'node',
+        args = {
+          get_pkg_path('js-debug-adapter', '/js-debug/src/dapDebugServer.js'),
+          '${port}',
+        },
+      },
+    }
+
+    for _, language in ipairs { 'typescript', 'javascript', 'typescriptreact', 'javascriptreact' } do
+      dap.configurations[language] = {
+        -- For debugging integration tests (most common for you)
+        {
+          type = 'pwa-node',
+          request = 'launch',
+          name = 'Vitest - run current file',
+          runtimeExecutable = 'node',
+          runtimeArgs = {
+            './node_modules/vitest/vitest.mjs',
+            'run',
+            '${file}',
+          },
+          rootPath = '${workspaceFolder}',
+          cwd = '${workspaceFolder}',
+          console = 'integratedTerminal',
+          sourceMaps = true,
+          -- port = 9229,
+        },
+        -- For attaching to manually started server
+        {
+          type = 'pwa-node',
+          request = 'attach',
+          name = 'Run debugger server',
+          port = 9229,
+          cwd = '${workspaceFolder}',
+          skipFiles = { '<node_internals>/**' },
+          sourceMaps = true,
+        },
+      }
+    end
   end,
 }
